@@ -383,6 +383,55 @@ function dueStatus(task) {
     return task.date === tomorrow ? "tomorrow" : null;
 }
 
+// Friendly text for a card's date and time, such as "Today, 4:30 pm" or "Fri 27 Nov".
+// If anything is unexpected it returns the original text, so a card can never fail to draw.
+function friendlyWhen(date, time) {
+    const original = [date, time].filter(Boolean).join(" ");
+    try {
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date ?? "");
+        if (!match) {
+            return original;
+        }
+        const day = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const difference = Math.round((day - todayStart) / 86400000);
+        const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        let label = difference === 0
+            ? "Today"
+            : difference === 1
+                ? "Tomorrow"
+                : `${weekdays[day.getDay()]} ${day.getDate()} ${months[day.getMonth()]}`;
+        const clock = /^(\d{2}):(\d{2})$/.exec(time ?? "");
+        if (clock) {
+            const hour = Number(clock[1]);
+            label += `, ${hour % 12 || 12}:${clock[2]} ${hour >= 12 ? "pm" : "am"}`;
+        }
+        return label;
+    } catch {
+        return original;
+    }
+}
+
+// "2" or "90 min" becomes "2 hours" or "1 h 30 min". Unreadable text is shown as typed.
+function friendlyDuration(text) {
+    try {
+        const minutes = parseDurationMinutes(text);
+        if (!minutes) {
+            return text;
+        }
+        if (minutes < 60) {
+            return `${minutes} min`;
+        }
+        const hours = Math.floor(minutes / 60);
+        const rest = minutes % 60;
+        return rest === 0 ? `${hours} hour${hours === 1 ? "" : "s"}` : `${hours} h ${rest} min`;
+    } catch {
+        return text;
+    }
+}
+
 function renderTasks(focusTaskId = null) {
     const board = document.querySelector(".task-columns");
     if (!board) {
@@ -426,9 +475,9 @@ function renderTasks(focusTaskId = null) {
                 task.fixed ? "Fixed" : "",
                 task.course,
                 task.crn,
-                [task.date, task.fixed ? task.startTime : task.dueTime].filter(Boolean).join(" "),
-                task.duration,
-                task.reminder
+                friendlyWhen(task.date, task.fixed ? task.startTime : task.dueTime),
+                friendlyDuration(task.duration),
+                task.reminder ? `Remind ${String(task.reminder).replace("minutes", "min")}` : ""
             ]
                 .filter(Boolean)
                 .join(" · ");
@@ -484,6 +533,22 @@ function renderTasks(focusTaskId = null) {
 
             item.append(details, editLink, removeButton);
             list.append(item);
+        }
+
+        // Show how many tasks are in this column next to its heading. Extra only: a failure is ignored.
+        try {
+            const heading = board.querySelector(`.task-column--${status.key} h2`);
+            if (heading) {
+                let count = heading.querySelector(".task-column__count");
+                if (!count) {
+                    count = document.createElement("span");
+                    count.className = "task-column__count";
+                    heading.append(" ", count);
+                }
+                count.textContent = String(statusTasks.length);
+            }
+        } catch {
+            // the heading just stays without a number
         }
     }
 
