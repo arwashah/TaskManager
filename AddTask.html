@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#040f0f">
+    <title>Add a task | Deadline Planner</title>
+    <link rel="stylesheet" href="Study.css">
+</head>
+<body>
+    <div class="planner-canvas planner-canvas--flow">
+        <div class="planner-content">
+            <header class="planner-header">
+                <div class="title-row">
+                    <h1>Deadline Planner</h1>
+                    <div class="status-dots" role="img" aria-label="Task status colors">
+                        <span class="status-dot status-dot--green"></span>
+                        <span class="status-dot status-dot--blue"></span>
+                        <span class="status-dot status-dot--pink"></span>
+                    </div>
+                </div>
+                <p class="planner-date"><time datetime="2026-11-23">Monday 23 November 2026</time></p>
+            </header>
+
+            <main>
+                <section class="task-toolbar task-toolbar--entry task-toolbar--three" aria-label="Taskboard actions">
+                    <a class="taskboard-label taskboard-link" href="index.html">TASKBOARD</a>
+                    <span class="add-task-button add-task-button--current" aria-current="page">Add Task +</span>
+                    <a class="add-task-button" href="calendar.html">Week plan</a>
+                </section>
+
+                <nav class="category-nav" aria-label="Task categories">
+                    <div class="category-list">
+                        <button class="category category--study" data-category="study" type="button" aria-current="page">Study</button>
+                        <button class="category category--personal" data-category="personal" type="button">Personal</button>
+                        <button class="category category--clubs" data-category="clubs" type="button">Clubs</button>
+                    </div>
+                    <button class="add-category-button" type="button">Add title</button>
+                </nav>
+
+                <section class="task-entry-panel" aria-labelledby="task-entry-heading">
+                    <h2 id="task-entry-heading">Task</h2>
+                    <form id="task-form">
+                        <label class="task-field task-field--title">
+                            <span>Title</span>
+                            <input name="title" type="text" maxlength="120" required autofocus>
+                        </label>
+                        <label class="task-fixed-toggle">
+                            <input name="fixed" type="checkbox">
+                            <span>Fixed time (an appointment or event that can't be moved)</span>
+                        </label>
+                        <div class="task-fields-grid">
+                            <label class="task-field">
+                                <span>Course</span>
+                                <input name="course" type="text" maxlength="80">
+                            </label>
+                            <label class="task-field">
+                                <span>CRN</span>
+                                <input name="crn" type="text" maxlength="20">
+                            </label>
+                            <label class="task-field">
+                                <span id="date-label">Deadline</span>
+                                <input name="date" type="date">
+                            </label>
+                            <label class="task-field" id="start-time-field" hidden>
+                                <span>Start time</span>
+                                <input name="startTime" type="time">
+                            </label>
+                            <label class="task-field">
+                                <span>How long?</span>
+                                <input name="duration" type="text" maxlength="40" placeholder="e.g. 1 hour">
+                            </label>
+                            <label class="task-field task-field--reminder">
+                                <span>Remind me</span>
+                                <select name="reminder" aria-label="Remind me">
+                                    <option value="">No reminder</option>
+                                    <option value="10 minutes before">10 minutes before</option>
+                                    <option value="1 hour before">1 hour before</option>
+                                    <option value="1 day before">1 day before</option>
+                                </select>
+                            </label>
+                        </div>
+                        <button class="task-submit-button" type="submit">Add Task</button>
+                    </form>
+                </section>
+            </main>
+        </div>
+    </div>
+    <script src="taskboard.js" defer></script>
+</body>
+</html>
