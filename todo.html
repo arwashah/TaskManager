@@ -13,20 +13,30 @@
                 <h1>Todo List</h1>
                 <div class="todo-task-wrapper">
                     <ul>
-                        <li><input type="text"></li>
+                        <li id = "todo-task">
+                            <div id="todo-task-input-box">
+                                <input type="text" id="input-new-task" placeholder="Enter a new task...">
+                            </div>
+                        </li>
                         <!--use javascript to put the element nest above as a variable when text is saved to it. This is the singular task. They can be dragged and dropped from to-do and done lists-->
                     </ul>
+                    <div id = "task-todo-counter"><span id = "todo-count">0</span> Tasks to do!</div>
                 </div>
             </div >
-            <div class="done-tasks-container">
+            <div class="done-task-container">
                 <h1>Done Tasks</h1>
-                <div class="done-tasks-wrapper">
+                <div class="done-task-wrapper">
                     <ul>
-                        <!-- tasks will be added here -->
+                        <li id = "done-task">
+                            <div id="done-task-box"></div>
+                        </li>
                     </ul>
+                    <div id = "task-done-counter"><span id = "done-count">0</span> Tasks done!  :D</div>
                 </div>
             </div>
         </div>
+        <div id = "task-counter"><span id = "total-count">0</span> Total Tasks!</div>
+        <div id = "task-percentage"><span id = "percentage">0</span>% done</div>
     </div>
 </body>
 </html>
