@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#040f0f">
     <title>Week plan | Deadline Planner</title>
-    <link rel="stylesheet" href="Study.css">
-    <link rel="stylesheet" href="calendar.css">
+    <link rel="stylesheet" href="Study.css?v=3">
+    <link rel="stylesheet" href="calendar.css?v=3">
 </head>
 <body>
     <div class="planner-canvas planner-canvas--flow">
@@ -53,23 +53,7 @@
                         <input id="ai-note" type="text" maxlength="300" placeholder="e.g. I'm busy Wednesday evening">
                     </label>
                     <p id="ai-status" class="ai-status" role="status" aria-live="polite"></p>
-                    <details id="ai-key-box" class="ai-key">
-                        <summary>Gemini key</summary>
-                        <p class="ai-key__help">
-                            Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>.
-                            It's saved only in this browser and sent only to Google. Your task titles, due dates and durations are sent to Google when you press the AI button.
-                            Anyone using this browser can see the key, so don't use it on a shared computer.
-                        </p>
-                        <div class="ai-key__row">
-                            <input id="gemini-key" type="password" autocomplete="off" spellcheck="false" aria-label="Gemini key">
-                            <button id="ai-key-save" class="ai-button ai-button--small" type="button">Save key</button>
-                            <button id="ai-key-remove" class="ai-button ai-button--quiet ai-button--small" type="button" hidden>Remove</button>
-                        </div>
-                        <label class="ai-note ai-note--model">
-                            <span>Model (leave empty to use the default)</span>
-                            <input id="gemini-model" type="text" autocomplete="off" spellcheck="false" placeholder="gemini-3.8-flash">
-                        </label>
-                    </details>
+                    <p class="ai-privacy">Your task titles, due dates and durations are sent to Google's Gemini through this site's planner service when you press the button.</p>
                 </section>
 
                 <section id="plan-notices" class="plan-notices" aria-live="polite"></section>
@@ -82,7 +66,7 @@
             </main>
         </div>
     </div>
-    <script src="taskboard.js" defer></script>
-    <script src="planner.js" defer></script>
+    <script src="taskboard.js?v=3" defer></script>
+    <script src="planner.js?v=3" defer></script>
 </body>
 </html>

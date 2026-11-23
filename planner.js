@@ -463,7 +463,7 @@
 
         if (ai && plan.aiStats) {
             const stats = plan.aiStats;
-            const text = ai.summary ? `Planned with Gemini. ${ai.summary}` : "Planned with Gemini.";
+            const text = ai.summary ? `Planned with AI. ${ai.summary}` : "Planned with AI.";
             notices.append(element("p", "plan-note plan-note--ai", text));
             if (stats.rejected || stats.filledMinutes > 0) {
                 const parts = [];
@@ -539,19 +539,17 @@
         legend.append(fixed, free);
     }
 
-    // ---- Gemini (optional) ----
-    const keyStorage = "deadline-planner.gemini-key.v1";
-    const modelStorage = "deadline-planner.gemini-model.v1";
-    const aiPlanStorage = "deadline-planner.ai-plan.v1";
-    // Google renames models often. These are tried in order when no model is typed in.
-    const defaultModels = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-flash"];
+    // ---- AI planning through a small backend (optional) ----
+    // Paste your Cloudflare Worker's address here (see worker/gemini-worker.js).
+    // The Gemini key lives only on that Worker, never in this file or on GitHub.
+    // While this is empty, the AI panel stays hidden and only the basic planner is shown.
+    const AI_ENDPOINT = "";
 
+    const aiPlanStorage = "deadline-planner.ai-plan.v1";
+    const aiPanel = document.querySelector(".ai-panel");
     const aiButton = document.querySelector("#ai-plan");
     const aiClear = document.querySelector("#ai-clear");
     const aiStatus = document.querySelector("#ai-status");
-    const keyBox = document.querySelector("#ai-key-box");
-    const keyInput = document.querySelector("#gemini-key");
-    const modelInput = document.querySelector("#gemini-model");
 
     function storageGet(key) {
         try {
@@ -599,67 +597,41 @@
         ]);
     }
 
-    function geminiError(status, detail) {
-        if (status === 400 && /api key/i.test(detail)) {
-            return "Gemini didn't accept that key. Check it and save it again.";
-        }
-        if (status === 401 || status === 403) {
-            return "Gemini refused the request. The key may be wrong, restricted, or not allowed to use this model.";
-        }
-        if (status === 429) {
-            return "Gemini's usage limit was reached. Wait a minute and try again.";
-        }
-        return `Gemini returned an error (${status}).${detail ? ` ${detail.slice(0, 160)}` : ""}`;
-    }
-
-    async function askGemini(prompt, key, models) {
-        for (const model of models) {
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 60000);
+    // Sends the prompt to the Worker, which adds the key and talks to Gemini.
+    async function askBackend(prompt) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 70000);
+        try {
+            const response = await fetch(AI_ENDPOINT, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ prompt }),
+                signal: controller.signal
+            });
+            let data = null;
             try {
-                const response = await fetch(
-                    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-                    {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-                        body: JSON.stringify({
-                            contents: [{ role: "user", parts: [{ text: prompt }] }],
-                            generationConfig: { responseMimeType: "application/json" }
-                        }),
-                        signal: controller.signal
-                    }
-                );
-                if (response.status === 404) {
-                    continue; // that model name no longer exists, try the next one
-                }
-                if (!response.ok) {
-                    let detail = "";
-                    try {
-                        detail = (await response.json()).error?.message ?? "";
-                    } catch {
-                        // no readable error body
-                    }
-                    throw new Error(geminiError(response.status, detail));
-                }
-                const data = await response.json();
-                const text = (data.candidates?.[0]?.content?.parts ?? []).map(part => part.text ?? "").join("");
-                if (!text.trim()) {
-                    throw new Error("Gemini sent back an empty answer. Try again.");
-                }
-                return { text, model };
-            } catch (error) {
-                if (error.name === "AbortError") {
-                    throw new Error("Gemini took too long to answer. Try again.");
-                }
-                if (error instanceof TypeError) {
-                    throw new Error("Couldn't reach Gemini. Check your internet connection.");
-                }
-                throw error;
-            } finally {
-                clearTimeout(timer);
+                data = await response.json();
+            } catch {
+                // not JSON
             }
+            if (!response.ok) {
+                throw new Error(data?.error || `The planner service returned an error (${response.status}).`);
+            }
+            if (typeof data?.text !== "string" || !data.text.trim()) {
+                throw new Error("The planner service sent back an empty answer. Try again.");
+            }
+            return { text: data.text, model: typeof data.model === "string" ? data.model : "Gemini" };
+        } catch (error) {
+            if (error.name === "AbortError") {
+                throw new Error("The planner took too long to answer. Try again.");
+            }
+            if (error instanceof TypeError) {
+                throw new Error("Couldn't reach the planner service. Check your internet connection.");
+            }
+            throw error;
+        } finally {
+            clearTimeout(timer);
         }
-        throw new Error(`Gemini doesn't know the model ${models.length > 1 ? "names" : "name"} ${models.join(", ")}. Type a current model name under \u201cGemini key\u201d.`);
     }
 
     function parseAiAnswer(text) {
@@ -668,11 +640,11 @@
         try {
             data = JSON.parse(cleaned);
         } catch {
-            throw new Error("Gemini's answer wasn't in a format the planner could read. Try again.");
+            throw new Error("The AI's answer wasn't in a format the planner could read. Try again.");
         }
         const blocks = Array.isArray(data) ? data : data?.blocks;
         if (!Array.isArray(blocks)) {
-            throw new Error("Gemini's answer had no schedule in it. Try again.");
+            throw new Error("The AI's answer had no schedule in it. Try again.");
         }
         return { blocks, summary: typeof data?.summary === "string" ? data.summary.slice(0, 400) : "" };
     }
@@ -701,14 +673,6 @@
     }
 
     async function planWithAi() {
-        const key = (storageGet(keyStorage) ?? "").trim();
-        if (!key) {
-            keyBox.open = true;
-            keyInput.focus();
-            setAiStatus("Add your Gemini key first (below), then press the button again.", "warn");
-            return;
-        }
-
         const tasks = readTasks();
         const settings = loadSettings();
         const now = new Date();
@@ -719,15 +683,14 @@
         }
 
         aiButton.disabled = true;
-        setAiStatus("Asking Gemini to plan your week…", "busy");
+        setAiStatus("Asking the AI to plan your week…", "busy");
         try {
-            const typed = (storageGet(modelStorage) ?? "").trim();
-            const { text, model } = await askGemini(request.prompt, key, typed ? [typed] : defaultModels);
+            const { text, model } = await askBackend(request.prompt);
             const answer = parseAiAnswer(text);
 
             // Only keep the plan if the app's own planner is still looking at the same tasks.
             if (planSignature(readTasks(), loadSettings(), new Date()) !== planSignature(tasks, settings, now)) {
-                setAiStatus("Your tasks changed while Gemini was planning. Press the button again.", "warn");
+                setAiStatus("Your tasks changed while the AI was planning. Press the button again.", "warn");
                 return;
             }
             storageSet(aiPlanStorage, JSON.stringify({
@@ -741,12 +704,12 @@
             if (!plan.aiStats || plan.aiStats.accepted === 0) {
                 storageSet(aiPlanStorage, null);
                 render();
-                setAiStatus("Gemini's suggestions didn't fit your rules, so the basic plan is shown. Try again.", "warn");
+                setAiStatus("The AI's suggestions didn't fit your rules, so the basic plan is shown. Try again.", "warn");
             } else {
                 setAiStatus(`Done. Planned with ${model}.`, "ok");
             }
         } catch (error) {
-            setAiStatus(error.message || "Something went wrong talking to Gemini.", "error");
+            setAiStatus(error.message || "Something went wrong planning with AI.", "error");
         } finally {
             aiButton.disabled = false;
         }
@@ -759,33 +722,9 @@
         setAiStatus("Showing the basic plan.", "");
     });
 
-    function refreshKeyField() {
-        const hasKey = !!(storageGet(keyStorage) ?? "").trim();
-        keyInput.value = "";
-        keyInput.placeholder = hasKey ? "Key saved in this browser" : "Paste your Gemini key";
-        document.querySelector("#ai-key-remove").hidden = !hasKey;
-        keyBox.querySelector("summary").textContent = hasKey ? "Gemini key (saved)" : "Gemini key";
+    if (!AI_ENDPOINT) {
+        aiPanel.hidden = true;
     }
-
-    document.querySelector("#ai-key-save").addEventListener("click", () => {
-        const key = keyInput.value.trim();
-        if (!key) {
-            setAiStatus("Paste your key into the box first.", "warn");
-            return;
-        }
-        setAiStatus(storageSet(keyStorage, key)
-            ? "Key saved in this browser."
-            : "Couldn't save the key (browser storage is blocked).", storageGet(keyStorage) ? "ok" : "error");
-        refreshKeyField();
-    });
-    document.querySelector("#ai-key-remove").addEventListener("click", () => {
-        storageSet(keyStorage, null);
-        refreshKeyField();
-        setAiStatus("Key removed from this browser.", "");
-    });
-    modelInput.value = storageGet(modelStorage) ?? "";
-    modelInput.addEventListener("change", () => storageSet(modelStorage, modelInput.value.trim()));
-    refreshKeyField();
 
     function onSettingChange() {
         const workHours = Number(document.querySelector("#work-hours").value);
