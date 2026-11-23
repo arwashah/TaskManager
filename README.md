@@ -4,7 +4,7 @@ A task and deadline planner for students that runs entirely in the browser. Add 
 
 **Live site:** https://arwashah.github.io/TaskManager/
 
-Built by [your name] for [course / module name, e.g. COMP 1234], [year].
+
 
 ## Features
 
