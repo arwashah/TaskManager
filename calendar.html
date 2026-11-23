@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#040f0f">
+    <title>Week plan | Deadline Planner</title>
+    <link rel="stylesheet" href="Study.css?v=5">
+    <link rel="stylesheet" href="calendar.css?v=5">
+</head>
+<body>
+    <div class="planner-canvas planner-canvas--flow">
+        <div class="planner-content">
+            <header class="planner-header">
+                <div class="title-row">
+                    <h1>Deadline Planner</h1>
+                    <div class="status-dots" role="img" aria-label="Task status colors">
+                        <span class="status-dot status-dot--green"></span>
+                        <span class="status-dot status-dot--blue"></span>
+                        <span class="status-dot status-dot--pink"></span>
+                    </div>
+                </div>
+                <p class="planner-date"><time datetime="2026-11-23">Monday 23 November 2026</time></p>
+            </header>
+
+            <main>
+                <section class="task-toolbar task-toolbar--entry task-toolbar--three" aria-label="Taskboard actions">
+                    <a class="taskboard-label taskboard-link" href="index.html">TASKBOARD</a>
+                    <a class="add-task-button" href="AddTask.html">Add Task +</a>
+                    <span class="add-task-button add-task-button--current" aria-current="page">Week plan</span>
+                </section>
+
+                <section class="plan-settings" aria-label="Planning settings">
+                    <label class="plan-setting">
+                        <span>Most work per day</span>
+                        <input id="work-hours" type="number" min="1" max="12" step="0.5" inputmode="decimal">
+                        <span>hours</span>
+                    </label>
+                    <label class="plan-setting">
+                        <span>Free time per day</span>
+                        <input id="free-hours" type="number" min="0" max="6" step="0.5" inputmode="decimal">
+                        <span>hours</span>
+                    </label>
+                </section>
+
+                <section class="ai-panel" aria-label="AI planning">
+                    <div class="ai-panel__row">
+                        <button id="ai-plan" class="ai-button" type="button">Plan my week with AI</button>
+                        <button id="ai-clear" class="ai-button ai-button--quiet" type="button" hidden>Use basic plan</button>
+                    </div>
+                    <label class="ai-note">
+                        <span>Anything the AI should know? (optional)</span>
+                        <input id="ai-note" type="text" maxlength="300" placeholder="e.g. I'm busy Wednesday evening">
+                    </label>
+                    <div id="ai-preview" class="ai-preview" hidden>
+                        <p id="ai-preview-text" class="ai-preview__text"></p>
+                        <div class="ai-panel__row">
+                            <button id="ai-apply" class="ai-button" type="button">Apply this plan</button>
+                            <button id="ai-discard" class="ai-button ai-button--quiet" type="button">Discard</button>
+                        </div>
+                    </div>
+                    <p id="ai-status" class="ai-status" role="status" aria-live="polite"></p>
+                    <p class="ai-privacy">Your task titles, due dates and durations are sent to Google's Gemini through this site's planner service when you press the button.</p>
+                </section>
+
+                <section id="plan-notices" class="plan-notices" aria-live="polite"></section>
+
+                <div class="week-scroll">
+                    <div id="week" class="week" aria-label="Next 7 days"></div>
+                </div>
+
+                <ul id="plan-legend" class="plan-legend" aria-label="Colour key"></ul>
+            </main>
+        </div>
+    </div>
+    <script src="taskboard.js?v=7" defer></script>
+    <script src="planner.js?v=5" defer></script>
+</body>
+</html>
