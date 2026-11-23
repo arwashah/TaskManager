@@ -1210,3 +1210,192 @@ input {
         font-size: 14px;
     }
 }
+
+/* ==========================================================================
+   Palette refresh (colours only, no layout changes)
+   Calmer dark base, readable nav buttons, status colours on the columns.
+   ========================================================================== */
+
+:root {
+    --canvas: #0b1118;
+    --panel: #121b24;
+}
+
+.planner-canvas {
+    --accent-panel: #14263a;
+    --accent-on: #0b1118;
+}
+
+.planner-canvas[data-theme="personal"] {
+    --accent-panel: #13291c;
+}
+
+.planner-canvas[data-theme="clubs"] {
+    --accent-panel: #3a1623;
+    --accent-on: #fff;
+}
+
+/* The three dots next to the title no longer match the column colours. */
+.status-dots {
+    display: none;
+}
+
+/* Navigation: the current page is the one filled button, the others are outlined. */
+.add-task-button,
+.task-toolbar--entry .taskboard-label {
+    border-color: #2d3d4d;
+    background: transparent;
+    color: #cfdbe6;
+}
+
+.add-task-button:hover,
+.task-toolbar--entry .taskboard-link:hover {
+    border-color: var(--accent-color);
+    background: rgba(255, 255, 255, 0.06);
+    filter: none;
+}
+
+.taskboard-label,
+.add-task-button--current {
+    border-color: var(--accent-color);
+    background: var(--accent-color);
+    color: var(--accent-on);
+}
+
+.task-toolbar--entry .taskboard-link {
+    color: #cfdbe6;
+}
+
+/* Buttons that sat white-on-colour now use dark text on the accent colour. */
+.task-submit-button,
+.data-tools__button,
+.reminder-help__button,
+.category-create-form button,
+.ai-button {
+    color: var(--accent-on);
+}
+
+.category-create-form .category-create-cancel {
+    color: #fff;
+}
+
+/* Category tabs: quiet when inactive, coloured when selected. */
+.category {
+    border: 1px solid #2d3d4d;
+    background: transparent;
+    color: #9fb0c0;
+}
+
+.category--study,
+.category--personal,
+.category--clubs,
+.category--custom {
+    background: transparent;
+}
+
+.category--study[aria-current="page"] {
+    border-color: transparent;
+    background: #2f5f94;
+    color: #fff;
+}
+
+.category--personal[aria-current="page"] {
+    border-color: transparent;
+    background: #2f6b45;
+    color: #fff;
+}
+
+.category--clubs[aria-current="page"] {
+    border-color: transparent;
+    background: #8a3350;
+    color: #fff;
+}
+
+.category--custom[aria-current="page"] {
+    border-color: transparent;
+    background: var(--category-color);
+    color: #fff;
+}
+
+.add-category-button {
+    border: 1px dashed #3a4c5d;
+    background: transparent;
+    color: #9fb0c0;
+}
+
+/* Columns: one neutral card colour, a coloured top edge says which status it is. */
+.task-column {
+    border-color: #1d2a37;
+}
+
+.task-column--todo {
+    border-color: #1d2a37;
+    border-top-color: #7f9bb8;
+    background: #121b24;
+}
+
+.task-column--progress {
+    border-color: #1d2a37;
+    border-top-color: #e0a43a;
+    background: #121b24;
+}
+
+.task-column--done {
+    border-color: #1d2a37;
+    border-top-color: #4caf6a;
+    background: #121b24;
+}
+
+.task-column--todo .task-card,
+.task-column--progress .task-card,
+.task-column--done .task-card {
+    background: #1c2733;
+}
+
+.task-card__remove,
+.task-card__edit {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.task-card__remove:hover,
+.task-card__edit:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.quick-add {
+    border: 1px dashed #2d3d4d;
+    background: transparent;
+}
+
+.quick-add input {
+    outline-color: #5fa0e0;
+}
+
+.quick-add input::placeholder {
+    color: #7d90a2;
+}
+
+.reminder-toast {
+    background: #1c2733;
+}
+
+/* Desktop only: thicker coloured top edge, taken out of the padding so nothing moves. */
+@media (min-width: 681px) {
+    .task-column {
+        border-top-width: 0.35cqw;
+        padding-top: 0.05cqw;
+    }
+
+    .task-column h2 {
+        font-size: 1.9cqw;
+        font-weight: 500;
+    }
+}
+
+/* Phones: same idea at the phone sizes. */
+@media (max-width: 680px) {
+    .task-column {
+        border-top-width: 3px;
+        padding-top: 6px;
+    }
+}

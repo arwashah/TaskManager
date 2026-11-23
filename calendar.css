@@ -286,7 +286,7 @@
     border: 0;
     border-radius: 20px;
     background: var(--accent-color);
-    color: #fff;
+    color: var(--accent-on, #0b1118);
     font: inherit;
     font-size: 14px;
     font-weight: 700;
