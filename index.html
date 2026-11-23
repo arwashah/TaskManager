@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#040f0f">
+    <title>Deadline Planner</title>
+    <link rel="stylesheet" href="Study.css">
+</head>
+<body>
+    <div class="planner-canvas">
+        <div class="planner-content">
+            <header class="planner-header">
+                <div class="title-row">
+                    <h1>Deadline Planner</h1>
+                    <div class="status-dots" role="img" aria-label="Task status colors">
+                        <span class="status-dot status-dot--green"></span>
+                        <span class="status-dot status-dot--blue"></span>
+                        <span class="status-dot status-dot--pink"></span>
+                    </div>
+                </div>
+                <p class="planner-date"><time datetime="2026-11-23">Monday 23 November 2026</time></p>
+            </header>
+
+            <main>
+                <section class="task-toolbar" aria-label="Taskboard actions">
+                    <h2 class="taskboard-label">TASKBOARD</h2>
+                    <a class="add-task-button" href="AddTask.html">Add Task +</a>
+                </section>
+
+                <nav class="category-nav" aria-label="Task categories">
+                    <div class="category-list">
+                        <button class="category category--study" data-category="study" type="button" aria-current="page">Study</button>
+                        <button class="category category--personal" data-category="personal" type="button">Personal</button>
+                        <button class="category category--clubs" data-category="clubs" type="button">Clubs</button>
+                    </div>
+                    <button class="add-category-button" type="button">Add title</button>
+                </nav>
+
+                <div class="task-columns">
+                    <section class="task-column task-column--todo" aria-labelledby="todo-heading">
+                        <h2 id="todo-heading">To-do</h2>
+                        <ul class="task-list" aria-label="Tasks to do">
+                        </ul>
+                        <label class="quick-add">
+                            <span class="visually-hidden">Add task to do</span>
+                            <input type="text" placeholder="Add task to do...">
+                        </label>
+                    </section>
+
+                    <section class="task-column task-column--progress" aria-labelledby="progress-heading">
+                        <h2 id="progress-heading">In progress</h2>
+                        <ul class="task-list" aria-label="Tasks in progress">
+                        </ul>
+                    </section>
+
+                    <section class="task-column task-column--done" aria-labelledby="done-heading">
+                        <h2 id="done-heading">Done</h2>
+                        <ul class="task-list" aria-label="Completed tasks">
+                        </ul>
+                    </section>
+                </div>
+            </main>
+        </div>
+    </div>
+    <script src="taskboard.js" defer></script>
+</body>
+</html>

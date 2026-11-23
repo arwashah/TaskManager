@@ -461,7 +461,7 @@ function addTask(form) {
         return;
     }
     saveTasks([...readTasks(), task]);
-    window.location.href = "Study.html";
+    window.location.href = "index.html";
 }
 
 const quickAddInput = document.querySelector(".quick-add input");
