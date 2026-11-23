@@ -1625,3 +1625,17 @@ input {
         border-radius: 0.8cqw;
     }
 }
+
+/* ==========================================================================
+   Taskboard page: end where the content ends (no empty band below the columns).
+   The fixed-ratio canvas made the page taller than its content.
+   ========================================================================== */
+.planner-canvas--board {
+    aspect-ratio: auto;
+    min-height: 0;
+    overflow: visible;
+}
+
+.planner-canvas--board .planner-content {
+    padding-bottom: 3cqw;
+}
