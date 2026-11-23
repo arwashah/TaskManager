@@ -1330,19 +1330,16 @@ input {
 
 .task-column--todo {
     border-color: #1d2a37;
-    border-top-color: #7f9bb8;
     background: #121b24;
 }
 
 .task-column--progress {
     border-color: #1d2a37;
-    border-top-color: #e0a43a;
     background: #121b24;
 }
 
 .task-column--done {
     border-color: #1d2a37;
-    border-top-color: #4caf6a;
     background: #121b24;
 }
 
@@ -1379,23 +1376,41 @@ input {
     background: #1c2733;
 }
 
-/* Desktop only: thicker coloured top edge, taken out of the padding so nothing moves. */
-@media (min-width: 681px) {
-    .task-column {
-        border-top-width: 0.35cqw;
-        padding-top: 0.05cqw;
-    }
+/* Status colour: a flat bar along the top of each column (no change to the column's size). */
+.task-column {
+    position: relative;
+}
 
+.task-column::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 14%;
+    right: 14%;
+    height: 0.3cqw;
+    border-radius: 0 0 0.3cqw 0.3cqw;
+    background: #7f9bb8;
+    pointer-events: none;
+}
+
+.task-column--progress::before {
+    background: #e0a43a;
+}
+
+.task-column--done::before {
+    background: #4caf6a;
+}
+
+@media (min-width: 681px) {
     .task-column h2 {
         font-size: 1.9cqw;
         font-weight: 500;
     }
 }
 
-/* Phones: same idea at the phone sizes. */
 @media (max-width: 680px) {
-    .task-column {
-        border-top-width: 3px;
-        padding-top: 6px;
+    .task-column::before {
+        height: 4px;
+        border-radius: 0 0 4px 4px;
     }
 }
