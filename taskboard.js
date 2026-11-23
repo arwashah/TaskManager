@@ -704,7 +704,11 @@ function saveTaskFromForm(form) {
         };
         saveTasks([...tasks, savedTask]);
     }
-    markPastRemindersHandled([savedTask]);
+    try {
+        markPastRemindersHandled([savedTask]);
+    } catch (error) {
+        console.warn("Couldn't update reminder bookkeeping:", error);
+    }
     window.location.href = "index.html";
 }
 
@@ -737,6 +741,41 @@ if (quickAddInput) {
 
 const taskForm = document.querySelector("#task-form");
 if (taskForm) {
+    // The save handler goes on first and looks up everything it needs itself, so nothing
+    // else on this page (or an older copy of the page) can stop a task from being saved.
+    taskForm.addEventListener("submit", event => {
+        event.preventDefault();
+        const lengthInput = taskForm.elements.duration;
+        const lengthError = document.querySelector("#duration-error");
+        if (lengthInput && parseDurationMinutes(lengthInput.value) === null) {
+            const message = "I couldn't read that length. Try something like 1 hour, 90 min or 1h 30m.";
+            lengthInput.setCustomValidity(message);
+            if (lengthError) {
+                lengthError.textContent = message;
+                lengthError.hidden = false;
+            }
+            lengthInput.reportValidity();
+            lengthInput.focus();
+            return;
+        }
+        try {
+            saveTaskFromForm(taskForm);
+        } catch (error) {
+            console.error("Saving the task failed:", error);
+            let problem = document.querySelector("#save-error");
+            if (!problem) {
+                problem = document.createElement("p");
+                problem.id = "save-error";
+                problem.className = "task-field__error";
+                problem.setAttribute("role", "alert");
+                taskForm.append(problem);
+            }
+            problem.textContent = `Couldn't save the task: ${error && error.message ? error.message : "unknown error"}`;
+        }
+    });
+
+    // Everything below is extra behaviour. If any piece is missing it is skipped, never fatal.
+    try {
     const fixedBox = taskForm.elements.fixed;
     const dateInput = taskForm.elements.date;
     const startTimeInput = taskForm.elements.startTime;
@@ -748,11 +787,15 @@ if (taskForm) {
     // A fixed task (an appointment) needs an exact date, start time and length.
     const syncFixedFields = () => {
         const fixed = taskForm.elements.fixed.checked;
-        startTimeLabel.textContent = fixed ? "Start time" : "Due time (optional)";
+        if (startTimeLabel) {
+            startTimeLabel.textContent = fixed ? "Start time" : "Due time (optional)";
+        }
         dateInput.required = fixed;
         startTimeInput.required = fixed;
         durationInput.required = fixed;
-        dateLabel.textContent = fixed ? "Date" : "Deadline";
+        if (dateLabel) {
+            dateLabel.textContent = fixed ? "Date" : "Deadline";
+        }
     };
     fixedBox.addEventListener("change", syncFixedFields);
     const durationError = document.querySelector("#duration-error");
@@ -843,21 +886,9 @@ if (taskForm) {
     });
     updateReminderHelp();
 
-    taskForm.addEventListener("submit", event => {
-        event.preventDefault();
-        if (parseDurationMinutes(durationInput.value) === null) {
-            const message = "I couldn't read that length. Try something like 1 hour, 90 min or 1h 30m.";
-            durationInput.setCustomValidity(message);
-            if (durationError) {
-                durationError.textContent = message;
-                durationError.hidden = false;
-            }
-            durationInput.reportValidity();
-            durationInput.focus();
-            return;
-        }
-        saveTaskFromForm(taskForm);
-    });
+    } catch (error) {
+        console.warn("Add Task page extras failed to set up:", error);
+    }
 }
 
 // ---- Backup: export and import tasks as a file ----
