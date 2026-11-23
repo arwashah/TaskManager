@@ -1484,3 +1484,86 @@ input {
         margin-top: 2cqw;
     }
 }
+
+/* ==========================================================================
+   Layout match to the mockup (desktop sizes only, CSS only):
+   compact nav, small left-aligned category tabs, three equal columns.
+   ========================================================================== */
+
+@media (min-width: 681px) {
+    .data-tools {
+        top: 0.9cqw;
+    }
+
+    .data-tools__button {
+        border: 1px solid #2d3d4d;
+        background: transparent;
+        color: #cfdbe6;
+        font-size: 0.8cqw;
+        font-weight: 500;
+    }
+
+    .data-tools__button:hover {
+        border-color: var(--accent-color);
+        background: rgba(255, 255, 255, 0.06);
+    }
+
+    .task-toolbar {
+        height: 3.7cqw;
+        gap: 0.8cqw;
+        padding: 0 0.7cqw;
+    }
+
+    .taskboard-label,
+    .add-task-button {
+        height: 2.5cqw;
+        border-width: 1px;
+        font-size: 0.95cqw;
+    }
+
+    .category-nav {
+        height: 3.3cqw;
+        margin-top: 0.7cqw;
+        padding: 0 0.7cqw;
+    }
+
+    .category-list {
+        gap: 0.7cqw;
+        margin-left: 0;
+    }
+
+    .category,
+    .add-category-button {
+        height: 2.2cqw;
+        font-size: 0.9cqw;
+    }
+
+    .category {
+        flex: 0 0 8cqw;
+        width: 8cqw;
+    }
+
+    .category-shell--custom {
+        flex: 0 0 8cqw;
+        width: 8cqw;
+    }
+
+    .add-category-button {
+        flex: 0 0 6cqw;
+        width: 6cqw;
+    }
+
+    .task-columns {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1.1cqw;
+        margin-top: 1.2cqw;
+    }
+
+    .task-column--progress {
+        transform: none;
+    }
+
+    .task-column {
+        min-height: 21cqw;
+    }
+}
