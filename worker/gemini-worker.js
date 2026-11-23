@@ -9,7 +9,7 @@
 //
 // The key lives only in Cloudflare. Never paste it into this file or into GitHub.
 
-const MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-flash"]; // tried in order
+const MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"]; // tried in order
 const MAX_PROMPT_CHARS = 30000;
 const DEFAULT_ORIGIN = "https://arwashah.github.io";
 
@@ -61,50 +61,71 @@ export default {
             return reply({ error: "That request is too big. Try with fewer tasks." }, 413);
         }
 
-        for (const model of MODELS) {
-            let upstream;
-            try {
-                upstream = await fetch(
-                    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-                    {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
-                        body: JSON.stringify({
-                            contents: [{ role: "user", parts: [{ text: prompt }] }],
-                            generationConfig: { responseMimeType: "application/json" }
-                        }),
-                        signal: AbortSignal.timeout(50000)
-                    }
-                );
-            } catch {
-                return reply({ error: "The planner service couldn't reach Gemini. Try again." }, 502);
-            }
+        const busyStatuses = new Set([500, 502, 503, 504]);
+        let sawBusy = false;
 
-            if (upstream.status === 404) {
-                continue; // that model name was retired, try the next one
+        // Go through the models in order. If Gemini is overloaded (503 and friends) or a model
+        // doesn't answer, move to the next model. If every model is busy, wait a moment and go round once more.
+        for (let round = 0; round < 2; round++) {
+            if (round > 0) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
             }
-            if (upstream.status === 429) {
-                return reply({ error: "Gemini's usage limit was reached. Wait a minute and try again." }, 429);
-            }
-            if (upstream.status === 400 || upstream.status === 401 || upstream.status === 403) {
-                // Details are deliberately not passed on to the browser.
-                return reply({ error: "Gemini rejected the planner service's key. The site owner needs to check it." }, 502);
-            }
-            if (!upstream.ok) {
-                return reply({ error: `Gemini returned an error (${upstream.status}). Try again.` }, 502);
-            }
+            for (const model of MODELS) {
+                let upstream;
+                try {
+                    upstream = await fetch(
+                        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+                        {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
+                            body: JSON.stringify({
+                                contents: [{ role: "user", parts: [{ text: prompt }] }],
+                                generationConfig: { responseMimeType: "application/json" }
+                            }),
+                            signal: AbortSignal.timeout(20000)
+                        }
+                    );
+                } catch {
+                    sawBusy = true;
+                    continue; // timed out or couldn't connect, try the next model
+                }
 
-            let data;
-            try {
-                data = await upstream.json();
-            } catch {
-                return reply({ error: "Gemini sent back something unreadable. Try again." }, 502);
+                if (upstream.status === 404) {
+                    continue; // that model name was retired, try the next one
+                }
+                if (busyStatuses.has(upstream.status)) {
+                    sawBusy = true;
+                    continue; // Gemini is overloaded right now, try the next model
+                }
+                if (upstream.status === 429) {
+                    return reply({ error: "Gemini's usage limit was reached. Wait a minute and try again." }, 429);
+                }
+                if (upstream.status === 400 || upstream.status === 401 || upstream.status === 403) {
+                    // Details are deliberately not passed on to the browser.
+                    return reply({ error: "Gemini rejected the planner service's key. The site owner needs to check it." }, 502);
+                }
+                if (!upstream.ok) {
+                    return reply({ error: `Gemini returned an error (${upstream.status}). Try again.` }, 502);
+                }
+
+                let data;
+                try {
+                    data = await upstream.json();
+                } catch {
+                    return reply({ error: "Gemini sent back something unreadable. Try again." }, 502);
+                }
+                const text = (data.candidates?.[0]?.content?.parts ?? []).map(part => part.text ?? "").join("");
+                if (!text.trim()) {
+                    return reply({ error: "Gemini sent back an empty answer. Try again." }, 502);
+                }
+                return reply({ text, model });
             }
-            const text = (data.candidates?.[0]?.content?.parts ?? []).map(part => part.text ?? "").join("");
-            if (!text.trim()) {
-                return reply({ error: "Gemini sent back an empty answer. Try again." }, 502);
+            if (!sawBusy) {
+                break; // nothing was busy, so a second round won't help
             }
-            return reply({ text, model });
+        }
+        if (sawBusy) {
+            return reply({ error: "Gemini is overloaded right now. Wait a minute and press the button again." }, 503);
         }
         return reply({ error: "None of the Gemini models the service knows about are available any more. The site owner needs to update the model list." }, 502);
     }
