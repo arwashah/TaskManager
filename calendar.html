@@ -43,6 +43,35 @@
                     </label>
                 </section>
 
+                <section class="ai-panel" aria-label="AI planning">
+                    <div class="ai-panel__row">
+                        <button id="ai-plan" class="ai-button" type="button">Plan my week with AI</button>
+                        <button id="ai-clear" class="ai-button ai-button--quiet" type="button" hidden>Use basic plan</button>
+                    </div>
+                    <label class="ai-note">
+                        <span>Anything the AI should know? (optional)</span>
+                        <input id="ai-note" type="text" maxlength="300" placeholder="e.g. I'm busy Wednesday evening">
+                    </label>
+                    <p id="ai-status" class="ai-status" role="status" aria-live="polite"></p>
+                    <details id="ai-key-box" class="ai-key">
+                        <summary>Gemini key</summary>
+                        <p class="ai-key__help">
+                            Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>.
+                            It's saved only in this browser and sent only to Google. Your task titles, due dates and durations are sent to Google when you press the AI button.
+                            Anyone using this browser can see the key, so don't use it on a shared computer.
+                        </p>
+                        <div class="ai-key__row">
+                            <input id="gemini-key" type="password" autocomplete="off" spellcheck="false" aria-label="Gemini key">
+                            <button id="ai-key-save" class="ai-button ai-button--small" type="button">Save key</button>
+                            <button id="ai-key-remove" class="ai-button ai-button--quiet ai-button--small" type="button" hidden>Remove</button>
+                        </div>
+                        <label class="ai-note ai-note--model">
+                            <span>Model (leave empty to use the default)</span>
+                            <input id="gemini-model" type="text" autocomplete="off" spellcheck="false" placeholder="gemini-3.8-flash">
+                        </label>
+                    </details>
+                </section>
+
                 <section id="plan-notices" class="plan-notices" aria-live="polite"></section>
 
                 <div class="week-scroll">

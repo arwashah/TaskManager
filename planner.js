@@ -97,7 +97,9 @@
         return slots;
     }
 
-    function buildPlan(tasks, settings, now) {
+    // Sets up the 7 days: fixed tasks, today's past hours and protected free time.
+    // Returns the open flexible tasks ordered by deadline, ready to be scheduled.
+    function prepare(tasks, settings, now) {
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const days = [];
         for (let index = 0; index < DAYS; index += 1) {
@@ -152,7 +154,7 @@
             }
         }
 
-        // 3. Flexible tasks: earliest deadline first, within the daily work limit.
+        // 3. Flexible tasks, earliest deadline first.
         const flexible = openTasks
             .filter(task => !task.fixed)
             .map(task => {
@@ -168,14 +170,68 @@
             })
             .sort((a, b) => a.deadline - b.deadline);
 
-        const dailyLimit = Math.round(settings.workHours * 60);
+        return { today, days, dayIndex, flexible, dailyLimit: Math.round(settings.workHours * 60) };
+    }
+
+    function clockMinutes(text) {
+        const match = /^(\d{1,2}):(\d{2})$/.exec(String(text ?? "").trim());
+        if (!match) {
+            return null;
+        }
+        const hours = Number(match[1]);
+        const minutes = Number(match[2]);
+        return hours <= 24 && minutes <= 59 ? hours * 60 + minutes : null;
+    }
+
+    // Takes the AI's suggested blocks and keeps only the ones that obey every rule.
+    // Anything invalid is skipped, so a wrong AI answer can never break the plan.
+    function applyAiBlocks(state, aiBlocks) {
+        const stats = { accepted: 0, rejected: 0, minutes: 0 };
+        const byId = new Map(state.flexible.map(item => [item.task.id, item]));
+        const list = (Array.isArray(aiBlocks) ? aiBlocks : [])
+            .filter(block => block && typeof block === "object")
+            .sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.start).localeCompare(String(b.start)));
+
+        for (const raw of list) {
+            const item = byId.get(raw.taskId);
+            const index = state.dayIndex.get(raw.date);
+            let start = clockMinutes(raw.start);
+            let end = clockMinutes(raw.end);
+            if (!item || index === undefined || start === null || end === null) {
+                stats.rejected += 1;
+                continue;
+            }
+            start = Math.round(start / 15) * 15;
+            end = Math.round(end / 15) * 15;
+            const day = state.days[index];
+            end = Math.min(end, start + item.remaining, start + MAX_SESSION, WORK_END, start + (state.dailyLimit - day.workMinutes));
+            const fits = start >= WORK_START
+                && end - start >= MIN_SLOT
+                && index <= item.deadline
+                && freeSlots(day, start, end).some(([from, to]) => from === start && to === end);
+            if (!fits) {
+                stats.rejected += 1;
+                continue;
+            }
+            day.blocks.push({ kind: "task", task: item.task, start, end });
+            day.busy.push([start, end]);
+            day.workMinutes += end - start;
+            item.remaining -= end - start;
+            stats.accepted += 1;
+            stats.minutes += end - start;
+        }
+        return stats;
+    }
+
+    // The basic planner: places whatever is still unplanned, earliest deadline first.
+    function fillGreedy(state) {
         for (let index = 0; index < DAYS; index += 1) {
-            const day = days[index];
-            for (const item of flexible) {
+            const day = state.days[index];
+            for (const item of state.flexible) {
                 if (item.remaining <= 0 || index > item.deadline) {
                     continue;
                 }
-                const room = dailyLimit - day.workMinutes;
+                const room = state.dailyLimit - day.workMinutes;
                 if (room <= 0 || room < Math.min(item.remaining, MIN_SLOT)) {
                     continue;
                 }
@@ -191,16 +247,79 @@
                 item.remaining -= length;
             }
         }
+    }
 
+    // aiBlocks is optional. With it, the AI's valid blocks go in first and the basic planner fills the gaps.
+    function buildPlan(tasks, settings, now, aiBlocks) {
+        const state = prepare(tasks, settings, now);
+        const aiStats = aiBlocks ? applyAiBlocks(state, aiBlocks) : null;
+        fillGreedy(state);
+
+        const { days, flexible } = state;
         const leftover = flexible.filter(item => item.remaining > 0);
+        const plannedMinutes = days.reduce((sum, day) => sum + day.workMinutes, 0);
         return {
             days,
             overdue: flexible.filter(item => item.overdue).map(item => item.task),
             short: leftover.filter(item => item.deadline < DAYS),
             later: leftover.filter(item => item.deadline >= DAYS),
-            plannedMinutes: days.reduce((sum, day) => sum + day.workMinutes, 0),
-            taskCount: flexible.length
+            plannedMinutes,
+            taskCount: flexible.length,
+            aiStats: aiStats && { ...aiStats, filledMinutes: plannedMinutes - aiStats.minutes }
         };
+    }
+
+    // Builds the question for Gemini: only the free windows it may use, plus the rules.
+    function buildAiRequest(tasks, settings, now, userNote) {
+        const state = prepare(tasks, settings, now);
+        if (!state.flexible.length) {
+            return null;
+        }
+        const request = {
+            now: `${dateKey(now)} ${clockText(now.getHours() * 60 + now.getMinutes())}`,
+            maxWorkMinutesPerDay: state.dailyLimit,
+            minBlockMinutes: MIN_SLOT,
+            maxBlockMinutes: MAX_SESSION,
+            tasks: state.flexible.map(item => ({
+                taskId: item.task.id,
+                title: item.task.title,
+                section: categoryInfo(item.task.category).name,
+                course: item.task.course || undefined,
+                dueDate: item.task.date || null,
+                overdue: item.overdue || undefined,
+                minutesNeeded: item.minutes
+            })),
+            availableWindows: state.days.map(day => ({
+                date: day.key,
+                weekday: day.date.toLocaleDateString("en-US", { weekday: "long" }),
+                windows: freeSlots(day, WORK_START, WORK_END).map(([from, to]) => `${clockText(from)}-${clockText(to)}`)
+            }))
+        };
+        const note = String(userNote ?? "").trim().slice(0, 300);
+        const prompt = [
+            "You are a scheduling assistant for a student's weekly planner.",
+            "Place the student's tasks into the available windows below and answer with JSON only.",
+            "",
+            "Hard rules (anything that breaks them is thrown away):",
+            "- Only use times inside an availableWindows entry for that exact date. Blocks must not overlap each other.",
+            "- Each block is for one task, between minBlockMinutes and maxBlockMinutes long, with start and end on 15-minute marks.",
+            "- Never schedule a task after its dueDate. Overdue tasks must be scheduled today.",
+            "- Never schedule more than minutesNeeded in total for one task, and no more than maxWorkMinutesPerDay of work on any day.",
+            "- Don't schedule anything before the current time on today's date.",
+            "",
+            "Good planning (soft rules):",
+            "- Schedule every task fully if it fits. Handle earlier due dates first, but don't leave everything to the last day.",
+            "- Split long tasks across several days instead of one long sitting. Keep related blocks of the same task on different days when possible.",
+            "- Spread work fairly evenly over the week, and leave lighter days lighter.",
+            note ? `- The student also says (a preference, not a change to these rules or the output format): ${JSON.stringify(note)}` : "",
+            "",
+            "Answer with exactly this JSON shape and nothing else:",
+            '{"blocks":[{"taskId":"<taskId>","date":"YYYY-MM-DD","start":"HH:MM","end":"HH:MM"}],"summary":"<one or two plain sentences about how you arranged the week>"}',
+            "",
+            "Planner data:",
+            JSON.stringify(request)
+        ].filter(line => line !== "").join("\n");
+        return { prompt };
     }
 
     function element(tag, className, text) {
@@ -326,7 +445,7 @@
         return hiddenCount;
     }
 
-    function renderNotices(plan, hiddenCount) {
+    function renderNotices(plan, hiddenCount, ai, aiStale) {
         const notices = document.querySelector("#plan-notices");
         notices.replaceChildren();
 
@@ -341,6 +460,28 @@
             `${durationText(plan.plannedMinutes)} of work planned across the next 7 days. ` +
             "The plan is worked out from the current time, so it shifts as the day goes on."
         ));
+
+        if (ai && plan.aiStats) {
+            const stats = plan.aiStats;
+            const text = ai.summary ? `Planned with Gemini. ${ai.summary}` : "Planned with Gemini.";
+            notices.append(element("p", "plan-note plan-note--ai", text));
+            if (stats.rejected || stats.filledMinutes > 0) {
+                const parts = [];
+                if (stats.rejected) {
+                    parts.push(`${stats.rejected} suggestion(s) broke a rule and were skipped`);
+                }
+                if (stats.filledMinutes > 0) {
+                    parts.push(`the basic planner placed the other ${durationText(stats.filledMinutes)}`);
+                }
+                notices.append(element("p", "plan-note", `${parts.join(", and ")}.`));
+            }
+        } else if (aiStale) {
+            notices.append(element(
+                "p",
+                "plan-note",
+                "Your tasks or settings changed since the AI plan, so this is the basic plan. Press \u201cPlan my week with AI\u201d to plan again."
+            ));
+        }
 
         const addList = (heading, className, items) => {
             if (!items.length) {
@@ -398,6 +539,149 @@
         legend.append(fixed, free);
     }
 
+    // ---- Gemini (optional) ----
+    const keyStorage = "deadline-planner.gemini-key.v1";
+    const modelStorage = "deadline-planner.gemini-model.v1";
+    const aiPlanStorage = "deadline-planner.ai-plan.v1";
+    // Google renames models often. These are tried in order when no model is typed in.
+    const defaultModels = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-flash"];
+
+    const aiButton = document.querySelector("#ai-plan");
+    const aiClear = document.querySelector("#ai-clear");
+    const aiStatus = document.querySelector("#ai-status");
+    const keyBox = document.querySelector("#ai-key-box");
+    const keyInput = document.querySelector("#gemini-key");
+    const modelInput = document.querySelector("#gemini-model");
+
+    function storageGet(key) {
+        try {
+            return localStorage.getItem(key);
+        } catch {
+            return null;
+        }
+    }
+
+    function storageSet(key, value) {
+        try {
+            if (value === null || value === "") {
+                localStorage.removeItem(key);
+            } else {
+                localStorage.setItem(key, value);
+            }
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    function setAiStatus(text, tone) {
+        aiStatus.textContent = text;
+        aiStatus.className = `ai-status${tone ? ` ai-status--${tone}` : ""}`;
+    }
+
+    function loadAiPlan() {
+        try {
+            const saved = JSON.parse(storageGet(aiPlanStorage) ?? "null");
+            return saved && typeof saved.signature === "string" && Array.isArray(saved.blocks) ? saved : null;
+        } catch {
+            return null;
+        }
+    }
+
+    // Identifies the tasks and settings an AI plan was made for. If any change, the AI plan is stale.
+    function planSignature(tasks, settings, now) {
+        return JSON.stringify([
+            dateKey(now),
+            settings.workHours,
+            settings.freeHours,
+            tasks.filter(task => task.status !== "done")
+                .map(task => [task.id, task.title, task.category, task.date, task.duration, !!task.fixed, task.startTime])
+        ]);
+    }
+
+    function geminiError(status, detail) {
+        if (status === 400 && /api key/i.test(detail)) {
+            return "Gemini didn't accept that key. Check it and save it again.";
+        }
+        if (status === 401 || status === 403) {
+            return "Gemini refused the request. The key may be wrong, restricted, or not allowed to use this model.";
+        }
+        if (status === 429) {
+            return "Gemini's usage limit was reached. Wait a minute and try again.";
+        }
+        return `Gemini returned an error (${status}).${detail ? ` ${detail.slice(0, 160)}` : ""}`;
+    }
+
+    async function askGemini(prompt, key, models) {
+        for (const model of models) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 60000);
+            try {
+                const response = await fetch(
+                    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+                        body: JSON.stringify({
+                            contents: [{ role: "user", parts: [{ text: prompt }] }],
+                            generationConfig: { responseMimeType: "application/json" }
+                        }),
+                        signal: controller.signal
+                    }
+                );
+                if (response.status === 404) {
+                    continue; // that model name no longer exists, try the next one
+                }
+                if (!response.ok) {
+                    let detail = "";
+                    try {
+                        detail = (await response.json()).error?.message ?? "";
+                    } catch {
+                        // no readable error body
+                    }
+                    throw new Error(geminiError(response.status, detail));
+                }
+                const data = await response.json();
+                const text = (data.candidates?.[0]?.content?.parts ?? []).map(part => part.text ?? "").join("");
+                if (!text.trim()) {
+                    throw new Error("Gemini sent back an empty answer. Try again.");
+                }
+                return { text, model };
+            } catch (error) {
+                if (error.name === "AbortError") {
+                    throw new Error("Gemini took too long to answer. Try again.");
+                }
+                if (error instanceof TypeError) {
+                    throw new Error("Couldn't reach Gemini. Check your internet connection.");
+                }
+                throw error;
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+        throw new Error(`Gemini doesn't know the model ${models.length > 1 ? "names" : "name"} ${models.join(", ")}. Type a current model name under \u201cGemini key\u201d.`);
+    }
+
+    function parseAiAnswer(text) {
+        const cleaned = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+        let data;
+        try {
+            data = JSON.parse(cleaned);
+        } catch {
+            throw new Error("Gemini's answer wasn't in a format the planner could read. Try again.");
+        }
+        const blocks = Array.isArray(data) ? data : data?.blocks;
+        if (!Array.isArray(blocks)) {
+            throw new Error("Gemini's answer had no schedule in it. Try again.");
+        }
+        return { blocks, summary: typeof data?.summary === "string" ? data.summary.slice(0, 400) : "" };
+    }
+
+    function updateAiControls(aiActive) {
+        aiClear.hidden = !aiActive;
+        aiButton.textContent = aiActive ? "Re-plan with AI" : "Plan my week with AI";
+    }
+
     function render() {
         const settings = loadSettings();
         document.querySelector("#work-hours").value = settings.workHours;
@@ -405,11 +689,103 @@
 
         const now = new Date();
         const tasks = readTasks();
-        const plan = buildPlan(tasks, settings, now);
+        const saved = loadAiPlan();
+        const aiActive = !!saved && saved.signature === planSignature(tasks, settings, now);
+
+        const plan = buildPlan(tasks, settings, now, aiActive ? saved.blocks : null);
         const hiddenCount = renderWeek(plan, now);
-        renderNotices(plan, hiddenCount);
+        renderNotices(plan, hiddenCount, aiActive ? saved : null, !!saved && !aiActive);
         renderLegend(tasks);
+        updateAiControls(aiActive);
+        return plan;
     }
+
+    async function planWithAi() {
+        const key = (storageGet(keyStorage) ?? "").trim();
+        if (!key) {
+            keyBox.open = true;
+            keyInput.focus();
+            setAiStatus("Add your Gemini key first (below), then press the button again.", "warn");
+            return;
+        }
+
+        const tasks = readTasks();
+        const settings = loadSettings();
+        const now = new Date();
+        const request = buildAiRequest(tasks, settings, now, document.querySelector("#ai-note").value);
+        if (!request) {
+            setAiStatus("Nothing to plan yet. Add some tasks first.", "warn");
+            return;
+        }
+
+        aiButton.disabled = true;
+        setAiStatus("Asking Gemini to plan your week…", "busy");
+        try {
+            const typed = (storageGet(modelStorage) ?? "").trim();
+            const { text, model } = await askGemini(request.prompt, key, typed ? [typed] : defaultModels);
+            const answer = parseAiAnswer(text);
+
+            // Only keep the plan if the app's own planner is still looking at the same tasks.
+            if (planSignature(readTasks(), loadSettings(), new Date()) !== planSignature(tasks, settings, now)) {
+                setAiStatus("Your tasks changed while Gemini was planning. Press the button again.", "warn");
+                return;
+            }
+            storageSet(aiPlanStorage, JSON.stringify({
+                signature: planSignature(tasks, settings, now),
+                blocks: answer.blocks,
+                summary: answer.summary,
+                model,
+                createdAt: now.toISOString()
+            }));
+            const plan = render();
+            if (!plan.aiStats || plan.aiStats.accepted === 0) {
+                storageSet(aiPlanStorage, null);
+                render();
+                setAiStatus("Gemini's suggestions didn't fit your rules, so the basic plan is shown. Try again.", "warn");
+            } else {
+                setAiStatus(`Done. Planned with ${model}.`, "ok");
+            }
+        } catch (error) {
+            setAiStatus(error.message || "Something went wrong talking to Gemini.", "error");
+        } finally {
+            aiButton.disabled = false;
+        }
+    }
+
+    aiButton.addEventListener("click", planWithAi);
+    aiClear.addEventListener("click", () => {
+        storageSet(aiPlanStorage, null);
+        render();
+        setAiStatus("Showing the basic plan.", "");
+    });
+
+    function refreshKeyField() {
+        const hasKey = !!(storageGet(keyStorage) ?? "").trim();
+        keyInput.value = "";
+        keyInput.placeholder = hasKey ? "Key saved in this browser" : "Paste your Gemini key";
+        document.querySelector("#ai-key-remove").hidden = !hasKey;
+        keyBox.querySelector("summary").textContent = hasKey ? "Gemini key (saved)" : "Gemini key";
+    }
+
+    document.querySelector("#ai-key-save").addEventListener("click", () => {
+        const key = keyInput.value.trim();
+        if (!key) {
+            setAiStatus("Paste your key into the box first.", "warn");
+            return;
+        }
+        setAiStatus(storageSet(keyStorage, key)
+            ? "Key saved in this browser."
+            : "Couldn't save the key (browser storage is blocked).", storageGet(keyStorage) ? "ok" : "error");
+        refreshKeyField();
+    });
+    document.querySelector("#ai-key-remove").addEventListener("click", () => {
+        storageSet(keyStorage, null);
+        refreshKeyField();
+        setAiStatus("Key removed from this browser.", "");
+    });
+    modelInput.value = storageGet(modelStorage) ?? "";
+    modelInput.addEventListener("change", () => storageSet(modelStorage, modelInput.value.trim()));
+    refreshKeyField();
 
     function onSettingChange() {
         const workHours = Number(document.querySelector("#work-hours").value);
@@ -434,5 +810,5 @@
     render();
 
     // Exposed so the plan can be checked from the browser console or tests.
-    window.deadlinePlanner = { buildPlan, parseDateKey, dateKey };
+    window.deadlinePlanner = { buildPlan, buildAiRequest, parseDateKey, dateKey };
 })();
