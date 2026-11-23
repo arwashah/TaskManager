@@ -543,7 +543,7 @@
     // Paste your Cloudflare Worker's address here (see worker/gemini-worker.js).
     // The Gemini key lives only on that Worker, never in this file or on GitHub.
     // While this is empty, the AI panel stays hidden and only the basic planner is shown.
-    const AI_ENDPOINT = "";
+    const AI_ENDPOINT = "https://empty-wood-14f7.arwashahzad027.workers.dev";
 
     const aiPlanStorage = "deadline-planner.ai-plan.v1";
     const aiPanel = document.querySelector(".ai-panel");
