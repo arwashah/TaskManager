@@ -1108,3 +1108,105 @@ input {
         padding: 8px 18px;
     }
 }
+
+/* ---- Reminders ---- */
+.reminder-help {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6cqw 1cqw;
+    margin: 0.9cqw 1.8cqw 0;
+}
+
+.reminder-help[hidden],
+.reminder-help__button[hidden] {
+    display: none;
+}
+
+.reminder-help__text {
+    margin: 0;
+    flex: 1 1 30cqw;
+    font-size: 0.8cqw;
+    line-height: 1.45;
+    text-align: left;
+}
+
+.reminder-help__button {
+    padding: 0.45cqw 1.2cqw;
+    border: 0;
+    border-radius: 2cqw;
+    background: var(--accent-color);
+    color: #fff;
+    font: inherit;
+    font-size: 0.8cqw;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.reminder-help__button:hover {
+    filter: brightness(1.12);
+}
+
+.reminder-toasts {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 1000;
+    display: grid;
+    gap: 10px;
+    width: min(360px, calc(100vw - 32px));
+}
+
+.reminder-toast {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: #2d3a3a;
+    color: #fff;
+    box-shadow: 0 0 0 2px #ffb020, 0 8px 24px rgba(0, 0, 0, 0.45);
+    font-size: 14px;
+    line-height: 1.4;
+    text-align: left;
+}
+
+.reminder-toast strong {
+    display: block;
+    color: #ffb020;
+}
+
+.reminder-toast__dismiss {
+    flex: 0 0 auto;
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.reminder-toast__dismiss:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+@media (max-width: 760px) {
+    .reminder-help {
+        margin: 12px 0 0;
+        gap: 8px 12px;
+    }
+
+    .reminder-help__text {
+        flex: 1 1 100%;
+        font-size: 13px;
+    }
+
+    .reminder-help__button {
+        padding: 8px 18px;
+        font-size: 14px;
+    }
+}

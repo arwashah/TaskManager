@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#040f0f">
     <title>Add a task | Deadline Planner</title>
-    <link rel="stylesheet" href="Study.css?v=5">
+    <link rel="stylesheet" href="Study.css?v=6">
 </head>
 <body>
     <div class="planner-canvas planner-canvas--flow">
@@ -62,8 +62,8 @@
                                 <span id="date-label">Deadline</span>
                                 <input name="date" type="date">
                             </label>
-                            <label class="task-field" id="start-time-field" hidden>
-                                <span>Start time</span>
+                            <label class="task-field" id="start-time-field">
+                                <span id="start-time-label">Due time (optional)</span>
                                 <input name="startTime" type="time">
                             </label>
                             <label class="task-field">
@@ -81,12 +81,16 @@
                                 </select>
                             </label>
                         </div>
+                        <div id="reminder-help" class="reminder-help" hidden>
+                            <p id="reminder-help-text" class="reminder-help__text"></p>
+                            <button id="enable-notifications" class="reminder-help__button" type="button" hidden>Turn on notifications</button>
+                        </div>
                         <button class="task-submit-button" type="submit">Add Task</button>
                     </form>
                 </section>
             </main>
         </div>
     </div>
-    <script src="taskboard.js?v=7" defer></script>
+    <script src="taskboard.js?v=8" defer></script>
 </body>
 </html>

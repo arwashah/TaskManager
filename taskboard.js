@@ -426,7 +426,7 @@ function renderTasks(focusTaskId = null) {
                 task.fixed ? "Fixed" : "",
                 task.course,
                 task.crn,
-                [task.date, task.fixed ? task.startTime : ""].filter(Boolean).join(" "),
+                [task.date, task.fixed ? task.startTime : task.dueTime].filter(Boolean).join(" "),
                 task.duration,
                 task.reminder
             ]
@@ -527,6 +527,147 @@ function setupDropTargets() {
 
 const editTaskId = new URLSearchParams(window.location.search).get("edit");
 
+// ---- Reminders ----
+// There is no server, so reminders fire while the planner is open in a browser tab.
+// A task with no time set counts from 9:00 on its due date.
+const reminderFiredKey = "deadline-planner.reminders-fired.v1";
+const reminderOffsets = {
+    "10 minutes before": 10 * 60 * 1000,
+    "1 hour before": 60 * 60 * 1000,
+    "1 day before": 24 * 60 * 60 * 1000
+};
+
+function dueMoment(task) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(task.date ?? "")) {
+        return null;
+    }
+    const time = task.fixed ? task.startTime : task.dueTime;
+    const [hours, minutes] = /^\d{2}:\d{2}$/.test(time ?? "") ? time.split(":").map(Number) : [9, 0];
+    const [year, month, day] = task.date.split("-").map(Number);
+    return new Date(year, month - 1, day, hours, minutes);
+}
+
+// Returns { due, at, key } for a task that has a reminder, or null.
+function reminderMoment(task) {
+    const offset = reminderOffsets[task.reminder];
+    const due = dueMoment(task);
+    if (offset === undefined || !due) {
+        return null;
+    }
+    const at = new Date(due.getTime() - offset);
+    return { due, at, key: `${task.id}|${at.getTime()}` };
+}
+
+function readFiredReminders() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(reminderFiredKey) ?? "{}");
+        return saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
+    } catch {
+        return {};
+    }
+}
+
+function writeFiredReminders(fired) {
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    for (const key of Object.keys(fired)) {
+        if (!(fired[key] > cutoff)) {
+            delete fired[key];
+        }
+    }
+    try {
+        localStorage.setItem(reminderFiredKey, JSON.stringify(fired));
+    } catch {
+        // storage full or blocked: reminders may repeat, nothing else breaks
+    }
+}
+
+// A reminder whose time has already passed when a task is saved shouldn't fire straight away.
+function markPastRemindersHandled(tasks) {
+    const fired = readFiredReminders();
+    const now = Date.now();
+    for (const task of tasks) {
+        const moment = reminderMoment(task);
+        if (moment && moment.at.getTime() <= now) {
+            fired[moment.key] = now;
+        }
+    }
+    writeFiredReminders(fired);
+}
+
+function describeTimeLeft(due) {
+    const minutes = Math.round((due.getTime() - Date.now()) / 60000);
+    if (minutes <= 1) {
+        return "due now";
+    }
+    if (minutes < 60) {
+        return `due in ${minutes} minutes`;
+    }
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) {
+        return `due in ${hours} hour${hours === 1 ? "" : "s"}`;
+    }
+    const days = Math.round(hours / 24);
+    return `due in ${days} day${days === 1 ? "" : "s"}`;
+}
+
+function showReminder(task, due, key) {
+    const message = `${task.title} is ${describeTimeLeft(due)}.`;
+
+    let box = document.querySelector("#reminder-toasts");
+    if (!box) {
+        box = document.createElement("div");
+        box.id = "reminder-toasts";
+        box.className = "reminder-toasts";
+        box.setAttribute("role", "status");
+        box.setAttribute("aria-live", "polite");
+        document.body.append(box);
+    }
+    const toast = document.createElement("div");
+    toast.className = "reminder-toast";
+    const text = document.createElement("div");
+    const heading = document.createElement("strong");
+    heading.textContent = "Reminder";
+    const body = document.createElement("span");
+    body.textContent = message;
+    text.append(heading, body);
+    const dismiss = document.createElement("button");
+    dismiss.type = "button";
+    dismiss.className = "reminder-toast__dismiss";
+    dismiss.textContent = "Dismiss";
+    dismiss.addEventListener("click", () => toast.remove());
+    toast.append(text, dismiss);
+    box.append(toast);
+
+    if ("Notification" in window && Notification.permission === "granted") {
+        try {
+            new Notification(`Reminder: ${task.title}`, { body: message, tag: key });
+        } catch {
+            // some mobile browsers only allow notifications from a service worker; the banner still shows
+        }
+    }
+}
+
+function checkReminders() {
+    const now = Date.now();
+    const fired = readFiredReminders();
+    let changed = false;
+    for (const task of readTasks()) {
+        if (task.status === "done") {
+            continue;
+        }
+        const moment = reminderMoment(task);
+        if (!moment || fired[moment.key] || now < moment.at.getTime() || now > moment.due.getTime()) {
+            continue;
+        }
+        fired[moment.key] = now;
+        changed = true;
+        showReminder(task, moment.due, moment.key);
+    }
+    if (changed) {
+        writeFiredReminders(fired);
+    }
+}
+
 function saveTaskFromForm(form) {
     const formData = new FormData(form);
     const fixed = formData.get("fixed") === "on";
@@ -536,6 +677,7 @@ function saveTaskFromForm(form) {
         crn: String(formData.get("crn")).trim(),
         date: String(formData.get("date")),
         startTime: fixed ? String(formData.get("startTime")) : "",
+        dueTime: fixed ? "" : String(formData.get("startTime") ?? ""),
         duration: String(formData.get("duration")).trim(),
         reminder: String(formData.get("reminder")),
         fixed,
@@ -547,18 +689,22 @@ function saveTaskFromForm(form) {
     }
 
     const tasks = readTasks();
+    let savedTask;
     if (editTaskId) {
         if (!tasks.some(task => task.id === editTaskId)) {
             return;
         }
-        saveTasks(tasks.map(task => task.id === editTaskId ? { ...task, ...fields } : task));
+        savedTask = { ...tasks.find(task => task.id === editTaskId), ...fields };
+        saveTasks(tasks.map(task => task.id === editTaskId ? savedTask : task));
     } else {
-        saveTasks([...tasks, {
+        savedTask = {
             id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
             ...fields,
             status: "todo"
-        }]);
+        };
+        saveTasks([...tasks, savedTask]);
     }
+    markPastRemindersHandled([savedTask]);
     window.location.href = "index.html";
 }
 
@@ -596,13 +742,13 @@ if (taskForm) {
     const startTimeInput = taskForm.elements.startTime;
     const durationInput = taskForm.elements.duration;
     const dateLabel = document.querySelector("#date-label");
-    const startTimeField = document.querySelector("#start-time-field");
+    const startTimeLabel = document.querySelector("#start-time-label");
     const submitButton = taskForm.querySelector(".task-submit-button");
 
     // A fixed task (an appointment) needs an exact date, start time and length.
     const syncFixedFields = () => {
         const fixed = taskForm.elements.fixed.checked;
-        startTimeField.hidden = !fixed;
+        startTimeLabel.textContent = fixed ? "Start time" : "Due time (optional)";
         dateInput.required = fixed;
         startTimeInput.required = fixed;
         durationInput.required = fixed;
@@ -629,7 +775,7 @@ if (taskForm) {
             taskForm.elements.course.value = taskToEdit.course ?? "";
             taskForm.elements.crn.value = taskToEdit.crn ?? "";
             dateInput.value = taskToEdit.date ?? "";
-            startTimeInput.value = taskToEdit.startTime ?? "";
+            startTimeInput.value = (taskToEdit.fixed ? taskToEdit.startTime : taskToEdit.dueTime) ?? "";
             durationInput.value = taskToEdit.duration ?? "";
             taskForm.elements.reminder.value = taskToEdit.reminder ?? "";
             fixedBox.checked = Boolean(taskToEdit.fixed);
@@ -647,6 +793,55 @@ if (taskForm) {
         }
     }
     syncFixedFields();
+
+    // Explains how reminders work and lets the person turn on browser notifications.
+    const reminderSelect = taskForm.elements.reminder;
+    const reminderHelp = document.querySelector("#reminder-help");
+    const reminderHelpText = document.querySelector("#reminder-help-text");
+    const notifyButton = document.querySelector("#enable-notifications");
+
+    function updateReminderHelp() {
+        if (!reminderHelp) {
+            return;
+        }
+        reminderHelp.hidden = !reminderSelect.value;
+        if (!reminderSelect.value) {
+            return;
+        }
+        const supported = "Notification" in window;
+        const permission = supported ? Notification.permission : "unsupported";
+        const open = "Reminders appear while Deadline Planner is open in a browser tab.";
+        const noTime = startTimeInput.value ? "" : " With no time set, they count from 9:00 on the due date.";
+        let text;
+        if (permission === "granted") {
+            text = `Notifications are on. ${open}${noTime}`;
+        } else if (permission === "denied") {
+            text = `Notifications are blocked for this site, so you'll see a banner on the page instead. ${open}${noTime}`;
+        } else if (permission === "unsupported") {
+            text = `This browser can't show pop-up notifications, so you'll see a banner on the page instead. ${open}${noTime}`;
+        } else {
+            text = `${open} Turn on notifications to also get a pop-up from your browser.${noTime}`;
+        }
+        reminderHelpText.textContent = text;
+        notifyButton.hidden = permission !== "default";
+    }
+
+    reminderSelect.addEventListener("change", updateReminderHelp);
+    startTimeInput.addEventListener("input", updateReminderHelp);
+    notifyButton?.addEventListener("click", async () => {
+        try {
+            await new Promise(resolve => {
+                const result = Notification.requestPermission(resolve);
+                if (result && typeof result.then === "function") {
+                    result.then(resolve);
+                }
+            });
+        } catch {
+            // ignore: the help text below shows the current state
+        }
+        updateReminderHelp();
+    });
+    updateReminderHelp();
 
     taskForm.addEventListener("submit", event => {
         event.preventDefault();
@@ -751,6 +946,7 @@ if (exportButton && importButton && importFile) {
                     crn: text(task.crn, 20),
                     date: /^\d{4}-\d{2}-\d{2}$/.test(task.date ?? "") ? task.date : "",
                     startTime: /^\d{2}:\d{2}$/.test(task.startTime ?? "") ? task.startTime : "",
+                    dueTime: /^\d{2}:\d{2}$/.test(task.dueTime ?? "") ? task.dueTime : "",
                     duration: text(task.duration, 40),
                     reminder: text(task.reminder, 40),
                     fixed: task.fixed === true,
@@ -776,6 +972,7 @@ if (exportButton && importButton && importFile) {
             renderCategories();
             applyCategory(localStorage.getItem(categoryStorageKey) ?? "study");
             saveTasks(result);
+            markPastRemindersHandled(imported);
             setDataStatus(`Imported ${imported.length} task(s): ${imported.length - updated} new, ${updated} updated.`, "ok");
         } catch (error) {
             setDataStatus(error && error.message ? error.message : "Couldn't import that file.", "error");
@@ -798,6 +995,15 @@ window.addEventListener("storage", event => {
         renderTasks();
     }
 });
+
+checkReminders();
+setInterval(checkReminders, 30000);
+document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+        checkReminders();
+    }
+});
+window.addEventListener("focus", checkReminders);
 
 // Show today's real date in the page header.
 const headerDate = document.querySelector(".planner-date time");
