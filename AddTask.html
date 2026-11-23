@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#040f0f">
     <title>Add a task | Deadline Planner</title>
-    <link rel="stylesheet" href="Study.css">
+    <link rel="stylesheet" href="Study.css?v=4">
 </head>
 <body>
     <div class="planner-canvas planner-canvas--flow">
@@ -69,6 +69,7 @@
                             <label class="task-field">
                                 <span>How long?</span>
                                 <input name="duration" type="text" maxlength="40" placeholder="e.g. 1 hour">
+                                <small id="duration-error" class="task-field__error" role="alert" hidden></small>
                             </label>
                             <label class="task-field task-field--reminder">
                                 <span>Remind me</span>
@@ -86,6 +87,6 @@
             </main>
         </div>
     </div>
-    <script src="taskboard.js" defer></script>
+    <script src="taskboard.js?v=4" defer></script>
 </body>
 </html>

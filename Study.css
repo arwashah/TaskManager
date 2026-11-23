@@ -1002,3 +1002,14 @@ input {
         font-size: 11px;
     }
 }
+
+.task-field__error {
+    margin-top: 6px;
+    color: #ff8aa5;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.task-field__error[hidden] {
+    display: none;
+}

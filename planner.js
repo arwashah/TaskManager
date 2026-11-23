@@ -673,18 +673,21 @@
     }
 
     async function planWithAi() {
-        const tasks = readTasks();
-        const settings = loadSettings();
-        const now = new Date();
-        const request = buildAiRequest(tasks, settings, now, document.querySelector("#ai-note").value);
-        if (!request) {
-            setAiStatus("Nothing to plan yet. Add some tasks first.", "warn");
+        if (aiButton.disabled) {
             return;
         }
-
         aiButton.disabled = true;
         setAiStatus("Asking the AI to plan your week…", "busy");
         try {
+            const tasks = readTasks();
+            const settings = loadSettings();
+            const now = new Date();
+            const request = buildAiRequest(tasks, settings, now, document.querySelector("#ai-note").value);
+            if (!request) {
+                setAiStatus("Nothing to plan yet. Add a task with a duration (and ideally a deadline) first. Fixed-time tasks aren't sent to the AI.", "warn");
+                return;
+            }
+
             const { text, model } = await askBackend(request.prompt);
             const answer = parseAiAnswer(text);
 
@@ -709,7 +712,8 @@
                 setAiStatus(`Done. Planned with ${model}.`, "ok");
             }
         } catch (error) {
-            setAiStatus(error.message || "Something went wrong planning with AI.", "error");
+            console.error("AI planning failed:", error);
+            setAiStatus(`Something went wrong: ${error && error.message ? error.message : "unknown error"}`, "error");
         } finally {
             aiButton.disabled = false;
         }

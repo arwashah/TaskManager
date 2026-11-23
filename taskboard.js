@@ -568,7 +568,13 @@ if (taskForm) {
         dateLabel.textContent = fixed ? "Date" : "Deadline";
     }
     fixedBox.addEventListener("change", syncFixedFields);
-    durationInput.addEventListener("input", () => durationInput.setCustomValidity(""));
+    const durationError = document.querySelector("#duration-error");
+    durationInput.addEventListener("input", () => {
+        durationInput.setCustomValidity("");
+        if (durationError) {
+            durationError.hidden = true;
+        }
+    });
 
     if (editTaskId) {
         const taskToEdit = readTasks().find(task => task.id === editTaskId);
@@ -604,8 +610,14 @@ if (taskForm) {
     taskForm.addEventListener("submit", event => {
         event.preventDefault();
         if (parseDurationMinutes(durationInput.value) === null) {
-            durationInput.setCustomValidity("Try something like 1 hour, 90 min or 1h 30m.");
+            const message = "I couldn't read that length. Try something like 1 hour, 90 min or 1h 30m.";
+            durationInput.setCustomValidity(message);
+            if (durationError) {
+                durationError.textContent = message;
+                durationError.hidden = false;
+            }
             durationInput.reportValidity();
+            durationInput.focus();
             return;
         }
         saveTaskFromForm(taskForm);
