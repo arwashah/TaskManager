@@ -1414,3 +1414,73 @@ input {
         border-radius: 0 0 4px 4px;
     }
 }
+
+/* ==========================================================================
+   Closer match to the design mockup (desktop sizes only, CSS only).
+   Cleaner system font, smaller title, tighter spacing, shorter columns.
+   ========================================================================== */
+
+:root {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+@media (min-width: 681px) {
+    .title-row {
+        min-height: 3.6cqw;
+    }
+
+    .title-row h1 {
+        margin-right: 0;
+        font-size: 2.5cqw;
+        font-weight: 500;
+        line-height: 1.2;
+        transform: none;
+    }
+
+    .planner-date {
+        margin: 0.2cqw 0 1cqw 0;
+        font-size: 0.95cqw;
+        font-weight: 400;
+        color: #9fb0c0;
+    }
+
+    .task-toolbar {
+        margin-top: 0;
+    }
+
+    .taskboard-label,
+    .add-task-button {
+        font-size: 1.05cqw;
+        font-weight: 500;
+    }
+
+    .category,
+    .add-category-button {
+        font-size: 1.05cqw;
+    }
+
+    .task-columns {
+        margin-top: 1.8cqw;
+    }
+
+    .task-column {
+        min-height: 19cqw;
+        text-align: left;
+    }
+
+    .task-column h2 {
+        padding-left: 0.9cqw;
+        font-size: 1.15cqw;
+        font-weight: 500;
+        line-height: 2.6cqw;
+    }
+
+    .task-list {
+        margin-top: 0.4cqw;
+    }
+
+    .task-entry-panel {
+        min-height: 0;
+        margin-top: 2cqw;
+    }
+}
