@@ -78,40 +78,46 @@ function parseDurationMinutes(text) {
 }
 
 function readCustomCategories() {
-    const savedCategories = localStorage.getItem(customCategoryStorageKey);
-    if (savedCategories === null) {
+    // Never let bad saved data stop the page from working: fall back to no custom titles.
+    try {
+        const savedCategories = localStorage.getItem(customCategoryStorageKey);
+        if (savedCategories === null) {
+            return [];
+        }
+        const categories = JSON.parse(savedCategories);
+        const ids = new Set();
+        const names = new Set();
+        const valid = Array.isArray(categories) && !categories.some(category => {
+            if (
+                !category ||
+                typeof category.id !== "string" ||
+                !category.id.startsWith("custom-") ||
+                typeof category.name !== "string" ||
+                !category.name.trim() ||
+                category.name.length > 40 ||
+                !Number.isInteger(category.colorIndex) ||
+                category.colorIndex < 0 ||
+                category.colorIndex >= customCategoryPalette.length
+            ) {
+                return true;
+            }
+            const normalizedName = category.name.trim().toLocaleLowerCase();
+            if (ids.has(category.id) || names.has(normalizedName)) {
+                return true;
+            }
+            ids.add(category.id);
+            names.add(normalizedName);
+            return false;
+        });
+        if (!valid) {
+            console.warn("Saved custom categories were invalid and were ignored.");
+            return [];
+        }
+        return categories;
+    } catch (error) {
+        console.warn("Saved custom categories could not be read and were ignored.", error);
         return [];
     }
-
-    const categories = JSON.parse(savedCategories);
-    const ids = new Set();
-    const names = new Set();
-    if (!Array.isArray(categories) || categories.some(category => {
-        if (
-            !category ||
-            typeof category.id !== "string" ||
-            !category.id.startsWith("custom-") ||
-            typeof category.name !== "string" ||
-            !category.name.trim() ||
-            category.name.length > 40 ||
-            !Number.isInteger(category.colorIndex) ||
-            category.colorIndex < 0 ||
-            category.colorIndex >= customCategoryPalette.length
-        ) {
-            return true;
-        }
-
-        const normalizedName = category.name.trim().toLocaleLowerCase();
-        if (ids.has(category.id) || names.has(normalizedName)) {
-            return true;
-        }
-        ids.add(category.id);
-        names.add(normalizedName);
-        return false;
-    })) {
-        throw new Error("Saved custom categories are invalid.");
-    }
-    return categories;
 }
 
 let customCategories = readCustomCategories();
@@ -314,25 +320,29 @@ addCategoryButton?.addEventListener("click", () => {
 });
 
 function readTasks() {
-    const savedTasks = localStorage.getItem(taskStorageKey);
-    if (savedTasks === null) {
+    // Keep every valid task; skip broken ones instead of crashing the whole page.
+    let saved;
+    try {
+        const raw = localStorage.getItem(taskStorageKey);
+        if (raw === null) {
+            return [];
+        }
+        saved = JSON.parse(raw);
+    } catch (error) {
+        console.warn("Saved tasks could not be read.", error);
         return [];
     }
-
-    const tasks = JSON.parse(savedTasks);
-    if (!Array.isArray(tasks) || tasks.some(task =>
-        !task ||
-        typeof task.id !== "string" ||
-        typeof task.title !== "string" ||
-        (task.category !== undefined && !isKnownCategory(task.category)) ||
-        !taskStatuses.some(status => status.key === task.status)
-    )) {
-        throw new Error("Saved task data is invalid.");
+    if (!Array.isArray(saved)) {
+        console.warn("Saved task data was not a list and was ignored.");
+        return [];
     }
-    return tasks.map(task => ({
-        ...task,
-        category: task.category ?? "study"
-    }));
+    return saved.filter(task =>
+        task &&
+        typeof task.id === "string" &&
+        typeof task.title === "string" &&
+        (task.category === undefined || isKnownCategory(task.category)) &&
+        taskStatuses.some(status => status.key === task.status)
+    ).map(task => ({ ...task, category: task.category ?? "study" }));
 }
 
 function saveTasks(tasks, focusTaskId = null) {
@@ -559,14 +569,14 @@ if (taskForm) {
     const submitButton = taskForm.querySelector(".task-submit-button");
 
     // A fixed task (an appointment) needs an exact date, start time and length.
-    function syncFixedFields() {
-        const fixed = fixedBox.checked;
+    const syncFixedFields = () => {
+        const fixed = taskForm.elements.fixed.checked;
         startTimeField.hidden = !fixed;
         dateInput.required = fixed;
         startTimeInput.required = fixed;
         durationInput.required = fixed;
         dateLabel.textContent = fixed ? "Date" : "Deadline";
-    }
+    };
     fixedBox.addEventListener("change", syncFixedFields);
     const durationError = document.querySelector("#duration-error");
     durationInput.addEventListener("input", () => {
